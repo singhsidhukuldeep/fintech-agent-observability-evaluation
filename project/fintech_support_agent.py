@@ -13,10 +13,17 @@ Architecture:
 
 # ── Standard library imports ──
 import os
+import logging
 import re       # Used to extract account IDs (e.g. ACC-12345) from user queries
 import json     # Used to serialize mock account data into LLM-readable context
 from pathlib import Path
 from typing import TypedDict, Literal
+
+# Chroma phones home to PostHog by default. Its bundled client is also incompatible
+# with current posthog releases and logs "Failed to send telemetry event" on every
+# run, so switch telemetry off and silence that logger.
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
 
 # ── LangChain / LangGraph imports ──
 # RecursiveCharacterTextSplitter: splits policy docs into overlapping chunks for embedding

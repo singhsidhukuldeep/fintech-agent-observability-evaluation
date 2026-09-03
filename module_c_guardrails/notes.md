@@ -322,7 +322,7 @@ User Query
 [Guardrails AI](https://www.guardrailsai.com/) is a framework for validating LLM outputs. It provides:
 
 1. **Guard class** — wraps your LLM output and applies validators
-2. **Guardrails Hub** — 50+ pre-built validators you can install
+2. **Validator packages** — 50+ pre-built validators, each a PyPI package (`guardrails-ai-<name>`)
 3. **Re-ask capability** — if validation fails, re-prompt the LLM automatically
 
 ### Architecture
@@ -357,17 +357,20 @@ Agent Response
 ### Setup
 
 ```bash
-pip install -r requirements.txt  # installs guardrails-ai from GitHub (PyPI is quarantined)
-guardrails hub install hub://guardrails/regex_match
-guardrails hub install hub://guardrails/toxic_language
-guardrails hub install hub://guardrails/competitor_check
+pip install -r requirements.txt
+pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check
+python -m guardrails_ai.toxic_language.post_install
+python -m guardrails_ai.competitor_check.post_install
+guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
 ```
+
+Guardrails' hosted inference and its private validator registry were shut down in August 2026. Validators are now ordinary PyPI packages, and the ML-backed ones (`ToxicLanguage`, `CompetitorCheck`) must run their models locally — pass `use_local=True`, because `guardrails-ai` still defaults to remote inference. The `guardrails configure` line above also disables telemetry, whose hardcoded endpoint is gone as well — without it every script stalls ~8 s at exit printing connection errors.
 
 ### Basic Usage
 
 ```python
 from guardrails import Guard
-from guardrails.hub import RegexMatch
+from guardrails_ai.regex_match import RegexMatch
 
 guard = Guard().use(
     RegexMatch(
@@ -433,10 +436,10 @@ Regex is a **first line of defense**, not a complete solution. Layer it with Pre
 Uses an LLM to detect toxic, offensive, or harmful content in the input or output:
 
 ```python
-from guardrails.hub import ToxicLanguage
+from guardrails_ai.toxic_language import ToxicLanguage
 
 guard = Guard().use(
-    ToxicLanguage(on_fail="exception")
+    ToxicLanguage(use_local=True, on_fail="exception")
 )
 
 # Blocks responses containing hate speech, profanity, threats, etc.
@@ -449,13 +452,14 @@ guard = Guard().use(
 Detects mentions of competitor brands:
 
 ```python
-from guardrails.hub import CompetitorCheck
+from guardrails_ai.competitor_check import CompetitorCheck
 
 # NOTE: CompetitorCheck uses entity matching, not substring matching.
 # "Chase Bank" is a different entity than "Chase" — include both variants.
 guard = Guard().use(
     CompetitorCheck(
         competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi", "Bank of America", "Capital One"],
+        use_local=True,
         on_fail="exception",
     )
 )
@@ -468,12 +472,14 @@ guard = Guard().use(
 
 ```python
 from guardrails import Guard
-from guardrails.hub import RegexMatch, ToxicLanguage, CompetitorCheck
+from guardrails_ai.regex_match import RegexMatch
+from guardrails_ai.toxic_language import ToxicLanguage
+from guardrails_ai.competitor_check import CompetitorCheck
 
 guard = Guard().use_many(
     RegexMatch(regex=r"(?s)^(?!.*\b\d{3}-\d{2}-\d{4}\b).*$", match_type="search", on_fail="exception"),
-    ToxicLanguage(on_fail="exception"),
-    CompetitorCheck(competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi"], on_fail="exception"),
+    ToxicLanguage(use_local=True, on_fail="exception"),
+    CompetitorCheck(competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi"], use_local=True, on_fail="exception"),
 )
 
 # Validators run in order. If any fails, the guard raises/fixes/reasks.
@@ -516,7 +522,9 @@ analyzer = AnalyzerEngine()
 anonymizer = AnonymizerEngine()
 
 # Step 1: Detect PII
-text = "My name is Alice Johnson and my SSN is 123-45-6789."
+# (856-…, not 123-45-6789: Presidio rejects that well-known placeholder SSN as
+#  invalid and would leave it unredacted — a regex would not know the difference.)
+text = "My name is Alice Johnson and my SSN is 856-45-6789."
 results = analyzer.analyze(text=text, language="en")
 
 # Step 2: See what was found
@@ -524,7 +532,7 @@ for result in results:
     print(f"  {result.entity_type}: {text[result.start:result.end]} (score: {result.score:.2f})")
 # Output:
 #   PERSON: Alice Johnson (score: 0.85)
-#   US_SSN: 123-45-6789 (score: 0.85)
+#   US_SSN: 856-45-6789 (score: 0.85)
 
 # Step 3: Redact
 anonymized = anonymizer.anonymize(text=text, analyzer_results=results)

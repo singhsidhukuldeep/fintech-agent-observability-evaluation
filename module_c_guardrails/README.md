@@ -90,25 +90,27 @@ You need Guardrails AI and Presidio installed:
 
 Follow the setup instructions in the [main README](../README.md) to install all dependencies.
 
-Additionally, Presidio requires the spaCy NER model for detecting names, addresses, and other PII that regex can't match. This is a pre-trained ML model (~560MB) distributed separately from PyPI:
+Additionally, Presidio requires the spaCy NER model for detecting names, addresses, and other PII that regex can't match. This is a pre-trained ML model (~400 MB) distributed separately from PyPI:
 
 ```bash
 python -m spacy download en_core_web_lg
 ```
 
-Before installing hub validators, you need a free Guardrails Hub token:
-
-1. Go to https://hub.guardrailsai.com/keys and sign up / log in
-2. Copy your token
-3. Run `guardrails configure` and paste the token when prompted
-
-Then install the validators:
+Install the validators (plain PyPI packages — no account or token needed):
 
 ```bash
-guardrails hub install hub://guardrails/regex_match
-guardrails hub install hub://guardrails/toxic_language
-guardrails hub install hub://guardrails/competitor_check
+pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check   # uv: uv pip install ...
 ```
+
+Then download the models they run locally (CompetitorCheck's spaCy `en_core_web_trf` is ~450 MB):
+
+```bash
+python -m guardrails_ai.toxic_language.post_install
+python -m guardrails_ai.competitor_check.post_install
+guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
+```
+
+The last line switches off Guardrails' telemetry and remote inference — both point at servers shut down in August 2026, and without it every script stalls ~8 s at exit printing connection errors.
 
 ```bash
 # Run from the project root directory

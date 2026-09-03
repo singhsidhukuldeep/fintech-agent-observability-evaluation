@@ -19,10 +19,11 @@ TODOs:
   TODO 8: Prompt injection detection - LLM-based classifier
 
 Prerequisites:
-  pip install guardrails-ai presidio-analyzer presidio-anonymizer
-  guardrails hub install hub://guardrails/regex_match
-  guardrails hub install hub://guardrails/toxic_language
-  guardrails hub install hub://guardrails/competitor_check
+  pip install -r requirements.txt
+  pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check
+  python -m guardrails_ai.toxic_language.post_install
+  python -m guardrails_ai.competitor_check.post_install
+  guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
 """
 
 import os
@@ -107,7 +108,7 @@ for query in input_tests:
 # Create a Guard that blocks SSN patterns (###-##-####) in output.
 #
 # from guardrails import Guard
-# from guardrails.hub import RegexMatch
+# from guardrails_ai.regex_match import RegexMatch
 #
 # guard = Guard().use(
 #     RegexMatch(regex="...", match_type="search", on_fail="exception")
@@ -151,12 +152,16 @@ else:
 #   - Toxic language (using ToxicLanguage validator)
 #   - Competitor mentions (Chase, Chase Bank, Wells Fargo, Citi, Bank of America, Capital One)
 #
-# from guardrails.hub import ToxicLanguage, CompetitorCheck
+# from guardrails_ai.toxic_language import ToxicLanguage
+# from guardrails_ai.competitor_check import CompetitorCheck
+#
+# Pass use_local=True to both: Guardrails' hosted inference was shut down in
+# Aug 2026, and guardrails-ai still defaults to remote.
 #
 # guard = Guard().use_many(
 #     RegexMatch(...),
-#     ToxicLanguage(on_fail="exception"),
-#     CompetitorCheck(competitors=[...], on_fail="exception"),
+#     ToxicLanguage(use_local=True, on_fail="exception"),
+#     CompetitorCheck(competitors=[...], use_local=True, on_fail="exception"),
 # )
 # ---------------------------------------------------------------------------
 # YOUR CODE HERE — create full guard with all 3 validators
@@ -232,7 +237,9 @@ anonymizer = None
 
 # Test PII detection:
 pii_samples = [
-    "My name is Alice Johnson and my SSN is 123-45-6789.",
+    # 856-…, not 123-45-6789: Presidio rejects that well-known placeholder SSN
+    # as invalid and would leave it unredacted.
+    "My name is Alice Johnson and my SSN is 856-45-6789.",
     "Please email me at alice@example.com or call 555-123-4567.",
     "My credit card number is 4111-1111-1111-1111.",
     "What is the overdraft fee?",  # No PII — should pass through unchanged

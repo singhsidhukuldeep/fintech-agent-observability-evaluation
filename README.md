@@ -119,6 +119,8 @@ Each module has a `notes.md` file with detailed reference documentation for that
 python --version  # should be 3.12.x
 ```
 
+> Using [uv](https://docs.astral.sh/uv/getting-started/installation/)? Skip this — `uv venv .venv --python 3.12` in step 3 installs Python 3.12 for you.
+
 ### 2. Clone or open this repo
 
 ```bash
@@ -129,6 +131,11 @@ cd fintech-agent-observability-evaluation
 ### 3. Create a virtual environment
 
 > **Important**: Use Python 3.12. On Windows, if your default `python` points to a different version, use `py -3.12` instead.
+
+**With uv (any OS):**
+```bash
+uv venv .venv --python 3.12
+```
 
 **Windows (PowerShell):**
 ```powershell
@@ -161,6 +168,12 @@ source .venv/bin/activate
 
 ### 5. Install dependencies
 
+**With uv:**
+```bash
+uv pip install -r requirements.txt
+```
+
+**With pip:**
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
@@ -188,28 +201,36 @@ LANGCHAIN_PROJECT=fintech-support-agent
 
 Get your LangSmith API key at [smith.langchain.com](https://smith.langchain.com) (free Developer plan — 1 seat, 5K traces/month).
 
-### 7. Install Guardrails Hub validators (Module C)
+### 7. Install Guardrails validators (Module C)
 
 ```bash
-pip install -r requirements.txt
 python -m spacy download en_core_web_lg
 ```
 
-Before installing hub validators, you need a free Guardrails Hub token:
-
-1. Go to https://hub.guardrailsai.com/keys and sign up / log in
-2. Copy your token
-3. Run `guardrails configure` and paste the token when prompted
-
-Then install the validators:
-
+**With uv:**
 ```bash
-guardrails hub install hub://guardrails/regex_match
-guardrails hub install hub://guardrails/toxic_language
-guardrails hub install hub://guardrails/competitor_check
+uv pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check
 ```
 
-> **Note**: Presidio requires the spaCy `en_core_web_lg` model for NER-based PII detection. The `spacy download` command above installs it (~560 MB).
+**With pip:**
+```bash
+pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check
+```
+
+Then download the models the validators run locally (ToxicLanguage: Detoxify; CompetitorCheck: spaCy `en_core_web_trf`, ~450 MB):
+
+```bash
+python -m guardrails_ai.toxic_language.post_install
+python -m guardrails_ai.competitor_check.post_install
+```
+
+Finally, switch off Guardrails' telemetry and remote inference — both point at servers shut down in August 2026, and without this every script stalls ~8 s at exit printing connection errors:
+
+```bash
+guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
+```
+
+> **Note**: Presidio requires the spaCy `en_core_web_lg` model for NER-based PII detection. The `spacy download` command above installs it (~400 MB).
 
 ### 8. Run a smoke test
 
@@ -367,7 +388,8 @@ The pinned versions in `requirements.txt` are tested to work together. If you se
 |---|---|---|
 | `langsmith` | `<0.3,>=0.1.17` | `langchain` 0.3.x requires `langsmith<0.3` |
 | `python-dotenv` | `>=1.1.1` | `deepeval>=3.8.9` requires `python-dotenv>=1.1.1` |
-| `guardrails-ai` | Installed from GitHub `@v0.10.0` | PyPI is quarantined due to a supply chain attack (CVE-2026-45758). v0.10.0 from GitHub is clean. |
+| `guardrails-ai` | Installed from GitHub `@v0.6.0` | PyPI release 0.10.1 was a supply-chain compromise (CVE-2026-45758); the repo pins a known-clean tag from GitHub instead |
+| `click` | `<8.2` | `guardrails-ai` pins `typer` 0.12.5, which crashes on click ≥ 8.2 (`Secondary flag is not valid for non-boolean flag`) in the `spacy` and `guardrails` CLIs |
 
 > **Tip**: `langchain-core` and `langchain-text-splitters` should **not** be pinned directly — they are resolved automatically as transitive dependencies of `langchain` and `langchain-openai`.
 
@@ -480,13 +502,22 @@ LANGCHAIN_API_KEY=lsv2_pt_your-key
 pip install deepeval
 ```
 
-**Guardrails Hub validators not found**
+**`ModuleNotFoundError: No module named 'guardrails_ai'`**
 ```bash
-pip install -r requirements.txt  # installs guardrails-ai from GitHub (PyPI is quarantined)
-guardrails configure  # paste your free token from https://hub.guardrailsai.com/keys
-guardrails hub install hub://guardrails/regex_match
-guardrails hub install hub://guardrails/toxic_language
-guardrails hub install hub://guardrails/competitor_check
+pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check   # uv: uv pip install ...
+python -m guardrails_ai.toxic_language.post_install
+python -m guardrails_ai.competitor_check.post_install
+```
+
+**Guardrails validator fails with a connection error to `hub.api.guardrailsai.com`**
+
+That host was shut down in August 2026. Pass `use_local=True` to `ToxicLanguage` and `CompetitorCheck` (see `module_c_guardrails/solution.py`) and make sure the post-install commands above have been run.
+
+**Script stalls at exit with `opentelemetry ... Transient error ... hty0gc1ok3.execute-api.us-east-1.amazonaws.com`**
+
+Guardrails' telemetry endpoint is gone too. Run once:
+```bash
+guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
 ```
 
 **Presidio not installed**

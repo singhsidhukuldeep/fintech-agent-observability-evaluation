@@ -28,9 +28,10 @@ This demo shows:
   Part 7: FULL      — Complete guarded pipeline (all strategies combined)
 
 Prerequisites:
-  pip install guardrails-ai presidio-analyzer presidio-anonymizer
-  guardrails hub install hub://guardrails/regex_match
-  guardrails hub install hub://guardrails/competitor_check
+  pip install -r requirements.txt
+  pip install guardrails-ai-regex-match guardrails-ai-competitor-check
+  python -m guardrails_ai.competitor_check.post_install
+  guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
 """
 
 import os
@@ -308,7 +309,8 @@ Both run AFTER the LLM responds — they validate the OUTPUT.
 
 try:
     from guardrails import Guard
-    from guardrails.hub import RegexMatch, CompetitorCheck
+    from guardrails_ai.regex_match import RegexMatch
+    from guardrails_ai.competitor_check import CompetitorCheck
 
     # Regex-based validator: catches SSN patterns (free, fast)
     # RegexMatch with match_type="search" treats a match as VALID.
@@ -324,9 +326,13 @@ try:
     # LLM-based validator: catches competitor mentions (costs 1 LLM call)
     # NOTE: CompetitorCheck uses entity matching, not substring matching.
     # "Chase Bank" is a different entity than "Chase" — include both variants.
+    # use_local=True: Guardrails' hosted inference was shut down in Aug 2026,
+    # and guardrails-ai still defaults to remote — without this flag the
+    # validator tries to reach the dead endpoint at validation time.
     competitor_guard = Guard().use(
         CompetitorCheck(
             competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi", "Bank of America", "Capital One"],
+            use_local=True,
             on_fail="exception",
         )
     )
@@ -365,10 +371,9 @@ try:
     guardrails_ai_available = True
 
 except ImportError:
-    print("\n  Guardrails AI not installed. Run:")
-    print("    pip install guardrails-ai")
-    print("    guardrails hub install hub://guardrails/regex_match")
-    print("    guardrails hub install hub://guardrails/competitor_check")
+    print("\n  Guardrails AI validators not installed. Run:")
+    print("    pip install guardrails-ai-regex-match guardrails-ai-competitor-check")
+    print("    python -m guardrails_ai.competitor_check.post_install")
     print("  Skipping Guardrails AI demo.\n")
     guardrails_ai_available = False
 

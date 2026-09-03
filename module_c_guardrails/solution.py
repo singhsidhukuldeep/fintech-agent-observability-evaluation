@@ -8,10 +8,11 @@ Full working solution with four guardrail strategies:
   STRATEGY 4 - LLM-BASED:   GPT classifier + Guardrails AI (toxicity, competitors)
 
 Prerequisites:
-  pip install guardrails-ai presidio-analyzer presidio-anonymizer
-  guardrails hub install hub://guardrails/regex_match
-  guardrails hub install hub://guardrails/toxic_language
-  guardrails hub install hub://guardrails/competitor_check
+  pip install -r requirements.txt
+  pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check
+  python -m guardrails_ai.toxic_language.post_install
+  python -m guardrails_ai.competitor_check.post_install
+  guardrails configure --disable-metrics --disable-remote-inferencing --clear-token
 """
 
 import os
@@ -93,7 +94,9 @@ print("=" * 60)
 
 try:
     from guardrails import Guard
-    from guardrails.hub import RegexMatch, ToxicLanguage, CompetitorCheck
+    from guardrails_ai.regex_match import RegexMatch
+    from guardrails_ai.toxic_language import ToxicLanguage
+    from guardrails_ai.competitor_check import CompetitorCheck
 
     # --- SOLUTION 2: RegexMatch for SSN ---
     # NOTE: match_type="search" treats a regex match as VALID (pass).
@@ -133,11 +136,16 @@ try:
             match_type="search",
             on_fail="exception",
         ),
+        # use_local=True: Guardrails' hosted inference was shut down in Aug 2026,
+        # and guardrails-ai still defaults to remote — without this flag both
+        # validators try to reach the dead endpoint at validation time.
         ToxicLanguage(
+            use_local=True,
             on_fail="exception",
         ),
         CompetitorCheck(
             competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi", "Bank of America", "Capital One"],
+            use_local=True,
             on_fail="exception",
         ),
     )
@@ -153,11 +161,10 @@ try:
     guardrails_available = True
 
 except ImportError:
-    print("  Guardrails AI not installed. Run:")
-    print("    pip install guardrails-ai")
-    print("    guardrails hub install hub://guardrails/regex_match")
-    print("    guardrails hub install hub://guardrails/toxic_language")
-    print("    guardrails hub install hub://guardrails/competitor_check")
+    print("  Guardrails AI validators not installed. Run:")
+    print("    pip install guardrails-ai-regex-match guardrails-ai-toxic-language guardrails-ai-competitor-check")
+    print("    python -m guardrails_ai.toxic_language.post_install")
+    print("    python -m guardrails_ai.competitor_check.post_install")
     guardrails_available = False
     full_guard = None
 
@@ -236,7 +243,9 @@ try:
 
     # Test PII detection
     pii_samples = [
-        "My name is Alice Johnson and my SSN is 123-45-6789.",
+        # 856-…, not 123-45-6789: Presidio rejects that well-known placeholder SSN
+        # as invalid and would leave it unredacted.
+        "My name is Alice Johnson and my SSN is 856-45-6789.",
         "Please email me at alice@example.com or call 555-123-4567.",
         "My credit card number is 4111-1111-1111-1111.",
         "What is the overdraft fee?",
