@@ -164,6 +164,7 @@ results = evaluate(
     evaluators=[routing_evaluator, faithfulness_evaluator, correctness_evaluator],
     experiment_prefix="solution-eval",
     metadata={"model": "gpt-4o-mini"},
+    # num_repetitions=3,  # commented out to speed up the run
 )
 
 print("\nEvaluation complete. View results in LangSmith.\n")
@@ -269,15 +270,18 @@ try:
         ctx = [result["context"]] if result["context"] else ["No context retrieved."]
         test_cases.append({
             "tc": LLMTestCase(
-                input=query,
-                actual_output=result["response"],
-                retrieval_context=ctx,
-                context=ctx,
+                input=query,                       # the user question
+                actual_output=result["response"],  # what the agent answered
+                retrieval_context=ctx,             # used by Faithfulness + AnswerRelevancy, Come from the prediction pipeline. 
+                context=ctx,                       # used by Hallucination (same docs here) / In general, comes from eval dataset labelling
             ),
             "response": result["response"],
         })
 
     # Run metrics
+    # FaithfulnessMetric [higher is better]: checks if the answer is supported by the retrieved context(retrieval_context).
+    # AnswerRelevancyMetric [higher is better]: checks if the answer is relevant to the question.
+    # HallucinationMetric [higher is better]: checks if the answer contains hallucinated information(Contradicts context).
     faithfulness = FaithfulnessMetric(threshold=0.7)
     relevancy = AnswerRelevancyMetric(threshold=0.7)
     hallucination = HallucinationMetric(threshold=0.7)
@@ -310,11 +314,11 @@ print("SEGMENT 10: G-EVAL (EMPATHY)")
 print("=" * 60)
 
 try:
-    from deepeval.metrics import GEval
+    from deepeval.metrics import GEval # describe what "good" means in plain English 
     from deepeval.test_case import LLMTestCaseParams, LLMTestCase
 
     empathy_metric = GEval(
-        name="Empathy",
+        name="Empathy", # Can be anything. (Not used by LLM)
         criteria=(
             "Evaluate whether the response shows genuine empathy and concern "
             "for the customer's situation. A highly empathetic response should: "
@@ -324,8 +328,8 @@ try:
             "4) Use warm, professional language. "
             "Score 0 if the response is robotic or dismissive. "
             "Score 1 if the response is genuinely empathetic."
-        ),
-        evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
+        ), # Actual criteria that an LLM uses to judge 
+        evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT], # other enums that names the fields of a test case: INPUT, ACTUAL_OUTPUT, EXPECTED_OUTPUT, CONTEXT, RETRIEVAL_CONTEXT
         threshold=0.7,
     )
 
@@ -551,3 +555,46 @@ print(">>> The demo changed chunk_size; you just changed top_k on a new dataset.
 
 print("\n>>> All evaluation segments complete.")
 print(">>> View results in LangSmith: https://smith.langchain.com")
+
+
+# ===================================================================
+# EXTRA: Using DeepEval metrics inside LangSmith evaluators
+# ===================================================================
+# LangSmith's evaluate() accepts any callable, and a DeepEval metric is just
+# an object with a measure() method, so you can wrap one in the other and get
+# DeepEval's score + reason in the LangSmith experiments UI next to
+# routing_accuracy / correctness. No official integration is needed.
+#
+# Example (same (run, example) signature as the evaluators in Segment 6):
+#
+#   from deepeval.test_case import LLMTestCase
+#   from deepeval.metrics import FaithfulnessMetric
+#
+#   def deepeval_faithfulness_evaluator(run, example):
+#       answer = run.outputs.get("answer", "")
+#       context = run.outputs.get("context", "")
+#       question = example.inputs.get("question", "")
+#       if not answer:
+#           return {"key": "deepeval_faithfulness", "score": 0.0}
+#       tc = LLMTestCase(
+#           input=question,
+#           actual_output=answer,
+#           retrieval_context=[context] if context else ["No context retrieved."],
+#       )
+#       metric = FaithfulnessMetric(threshold=0.7)
+#       metric.measure(tc)
+#       return {"key": "deepeval_faithfulness", "score": metric.score, "comment": metric.reason}
+#
+# Then add it to evaluators=[...] in the evaluate() call. HallucinationMetric
+# (uses context=) and the G-Eval empathy metric (input + actual_output only)
+# wrap the same way.
+#
+# Gotchas:
+#   - Build the metric INSIDE the function. measure() stores score/reason on
+#     the object, so a shared instance races under concurrent evaluation.
+#   - DeepEval defaults to async_mode=True and starts its own event loop.
+#     If you hit "event loop is already running", pass async_mode=False.
+#   - DeepEval calls OpenAI directly with its own judge model, not judge_llm.
+#     Those calls are not traced in LangSmith and are billed separately.
+#   - In DeepEval 4.x all three scores are 0-1, higher is better, so they
+#     drop straight into LangSmith's scoring convention.
