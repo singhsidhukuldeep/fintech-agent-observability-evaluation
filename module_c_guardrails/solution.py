@@ -83,7 +83,7 @@ for query in input_tests:
     else:
         print(f"  [SAFE]    {query[:60]}")
 
-
+print("\n" + "<>" * 30 + "\n")
 # ===================================================================
 # OUTPUT GUARD: Guardrails AI (Strategy 1 regex + Strategy 4 LLM)
 # ===================================================================
@@ -123,6 +123,8 @@ try:
         except Exception as e:
             print(f"  BLOCKED: {text[:60]}")
 
+    print("\n" + "<>" * 30 + "\n")
+
     # --- SOLUTION 3: Full guard with all validators ---
     # Validators run sequentially in the order listed. If any fails
     # (on_fail="exception"), the remaining validators are skipped.
@@ -140,12 +142,12 @@ try:
         # and guardrails-ai still defaults to remote — without this flag both
         # validators try to reach the dead endpoint at validation time.
         ToxicLanguage(
-            use_local=True,
+            use_local=True, # Detoxify unbiased-small
             on_fail="exception",
         ),
         CompetitorCheck(
             competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi", "Bank of America", "Capital One"],
-            use_local=True,
+            use_local=True, # runs spaCy's en_core_web_trf 
             on_fail="exception",
         ),
     )
@@ -159,6 +161,7 @@ try:
         print(f"\n  BLOCKED: {competitor_test[:60]}")
 
     guardrails_available = True
+    print("\n" + "<>" * 30 + "\n")
 
 except ImportError:
     print("  Guardrails AI validators not installed. Run:")
@@ -206,6 +209,8 @@ for query in pipeline_tests:
     response = safe_pipeline(query)
     print(f"  Response: {response[:150]}...")
 
+print("\n" + "<>" * 30 + "\n")
+
 # --- Output guard demo: what if the agent's RESPONSE contains blocked content? ---
 print("\n--- Output Guard Demo (simulated agent responses) ---")
 if guardrails_available and full_guard is not None:
@@ -222,6 +227,7 @@ if guardrails_available and full_guard is not None:
         except Exception:
             print(f"  [OUTPUT BLOCKED] {label}: {response[:60]}")
 
+print("\n" + "<>" * 30 + "\n")
 
 # ===================================================================
 # OUTPUT GUARD: Presidio PII Redaction (Strategy 3 — ML/NER)
@@ -264,6 +270,7 @@ try:
         else:
             print(f"\n  CLEAN:  {text}")
 
+    print("\n" + "<>" * 30 + "\n")
     presidio_available = True
 
 except ImportError:
@@ -313,6 +320,7 @@ for query in moderation_tests:
     else:
         print(f"  [SAFE]    {query[:60]}")
 
+print("\n" + "<>" * 30 + "\n")
 
 # ===================================================================
 # INPUT GUARD: Prompt Injection Classifier (Strategy 4 — LLM-based)
@@ -363,6 +371,7 @@ for query in injection_tests:
     else:
         print(f"  [SAFE]      {query[:70]}")
 
+print("\n" + "<>" * 30 + "\n")
 
 # ===================================================================
 # FULL GUARDED PIPELINE (all 4 strategies combined)
@@ -446,6 +455,8 @@ for query in guarded_tests:
     print(f"\n  Query: {query}")
     response = guarded_pipeline(query)
     print(f"  Response: {response[:150]}...")
+
+print("\n" + "<>" * 30 + "\n")
 
 
 print("\n" + "=" * 60)
