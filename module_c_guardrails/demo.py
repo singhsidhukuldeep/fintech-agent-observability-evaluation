@@ -332,7 +332,7 @@ try:
     competitor_guard = Guard().use(
         CompetitorCheck(
             competitors=["Chase", "Chase Bank", "Wells Fargo", "Citi", "Bank of America", "Capital One"],
-            use_local=True,
+            use_local=True, # spacy.load("en_core_web_trf") when use_local=True 
             on_fail="exception",
         )
     )
