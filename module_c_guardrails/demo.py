@@ -535,9 +535,11 @@ all_queries = list(DANGEROUS_QUERIES.values()) + ACCOUNT_QUERIES + [
 ]
 
 for query in all_queries:
+    print("\n" + "-" * 60)
     print(f"\n  Query: {query}")
     response = guarded_pipeline(query)
     print(f"  Final: {response[:200]}")
+    print("-" * 60)
 
 print()
 
