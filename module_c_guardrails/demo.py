@@ -469,11 +469,11 @@ def guarded_pipeline(query):
         mod_ms = (time.time() - t0) * 1000
         if mod_result.flagged:
             cats = [c for c, v in mod_result.categories.model_dump().items() if v]
-            print(f"    [MODERATION] Flagged: {cats} ({mod_ms:.0f}ms) — 0 LLM calls")
+            print(f"    [OpenAI MODERATION] Flagged: {cats} ({mod_ms:.0f}ms) — 0 LLM calls")
             return SAFE_FALLBACK
     except Exception as e:
         mod_ms = (time.time() - t0) * 1000
-        print(f"    [MODERATION] API error ({mod_ms:.0f}ms): {e} — skipping")
+        print(f"    [OpenAI MODERATION] API error ({mod_ms:.0f}ms): {e} — skipping")
 
     # Step 2: Input guard (regex) — block before LLM
     t0 = time.time()
@@ -489,11 +489,11 @@ def guarded_pipeline(query):
         label = injection_chain.invoke({"query": query}).strip().lower()
         inj_ms = (time.time() - t0) * 1000
         if "injection" in label:
-            print(f"    [INJECTION] Blocked: prompt injection detected ({inj_ms:.0f}ms)")
+            print(f"    [INJECTION (LLM injection classifier)] Blocked: prompt injection detected ({inj_ms:.0f}ms)")
             return SAFE_FALLBACK
     except Exception as e:
         inj_ms = (time.time() - t0) * 1000
-        print(f"    [INJECTION] Classifier error ({inj_ms:.0f}ms): {e} — skipping")
+        print(f"    [INJECTION (LLM injection classifier)] Classifier error ({inj_ms:.0f}ms): {e} — skipping")
 
     # Step 4: Run agent
     t0 = time.time()
@@ -509,7 +509,7 @@ def guarded_pipeline(query):
             competitor_guard.validate(answer)
         except Exception:
             guard_ms = (time.time() - t0) * 1000
-            print(f"    [GUARDRAILS AI] Validation failed ({guard_ms:.0f}ms) — blocked")
+            print(f"    [Guardrails AI] Validation failed ({guard_ms:.0f}ms) — blocked")
             return SAFE_FALLBACK
     guard_ms = (time.time() - t0) * 1000
 
