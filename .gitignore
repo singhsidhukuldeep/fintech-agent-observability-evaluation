@@ -12,3 +12,4 @@ audit_log*.jsonl
 .deepeval/
 batch_input.jsonl
 .pdf_images/
+.DS_Store*
